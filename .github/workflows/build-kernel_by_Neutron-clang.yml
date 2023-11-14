@@ -56,6 +56,7 @@ jobs:
         echo "ENABLE_LXC=$(cat $CONFIG_ENV | grep -w "ENABLE_LXC" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
         echo "TCLANG_BRANCH=$(cat $CONFIG_ENV | grep -w "TCLANG_BRANCH" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
         echo "NEUTRON_CLANG_VERSION=$(cat $CONFIG_ENV | grep -w "NEUTRON_CLANG_VERSION" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
+        echo "ENABLE_CLIBC_PATCH=$(cat $CONFIG_ENV | grep -w "ENABLE_CLIBC_PATCH" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
 
 
     - name: Set swap to 10G
@@ -84,27 +85,34 @@ jobs:
     - name: Download Neutron-clang
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        mkdir Neutron-clang
+        mkdir -p "$HOME/toolchains/neutron-clang"
+        cd "$HOME/toolchains/neutron-clang"
+        curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
+        chmod +x antman
+
+        if [ ${{ env.NEUTRON_CLANG_VERSION }} = main ]; then
+            ./antman --sync=latest
+        fi
+        
         if [ ${{ env.NEUTRON_CLANG_VERSION }} = 18 ]; then
-            wget -O clang18.tar.zst https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/29072023/neutron-clang-29072023.tar.zst
-            tar -C Neutron-clang/ -I zstd -xf clang18.tar.zst
+            ./antman -S=29072023
         fi
 
         if [ ${{ env.NEUTRON_CLANG_VERSION }} = 17 ]; then
-            wget -O clang17.tar.zst https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/25022023/neutron-clang-25022023.tar.zst
-            tar -C Neutron-clang/ -I zstd -xf clang17.tar.zst
+            ./antman -S=11032023
         fi
 
         if [ ${{ env.NEUTRON_CLANG_VERSION }} = 16 ]; then
-            mkdir -p "$HOME/toolchains/neutron-clang"
-            cd "$HOME/toolchains/neutron-clang"
-            curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
-            chmod +x antman
-            ./antman -S
+            ./antman -S=16012023
         fi
-        
 
-        
+   - name: enable glibc patch
+      if: env.ENABLE_CLIBC_PATCH == 'true'
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/toolchains/neutron-clang
+        ./antman --patch=glibc
+
+      
     - name: Download mkbootimg tools
       if: env.BUILD_BOOT_IMG == 'true'
       run: |
